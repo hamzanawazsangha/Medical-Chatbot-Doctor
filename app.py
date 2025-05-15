@@ -56,39 +56,57 @@ with st.sidebar:
 # Hugging Face LLM initialization
 @st.cache_resource
 def initialize_llm():
-    llm = HuggingFaceEndpoint(
-        repo_id="google/flan-t5-xxl",
-        model_kwargs={"temperature": 0.7, "max_length": 512}
-    )
+    from langchain_huggingface import HuggingFaceEndpoint
+    import os
 
-    template = """
-    You are a highly experienced medical doctor named MediBot. Your task is to:
-    1. Analyze the patient's symptoms and medical history
-    2. Provide a possible diagnosis (list possible conditions by likelihood)
-    3. Recommend appropriate medications (considering the patient's country: {country})
-    4. Suggest lifestyle recommendations
-    5. Advise when to seek immediate medical attention
+    huggingface_token = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
 
-    Current conversation:
-    {history}
+    if not huggingface_token:
+        st.error("Hugging Face API token not found. Please set the 'HUGGINGFACEHUB_API_TOKEN' environment variable.")
+        return None
 
-    Patient: {input}
-    MediBot:"""
+    try:
+        llm = HuggingFaceEndpoint(
+            repo_id="google/flan-t5-xxl",
+            temperature=0.7,
+            max_length=512,
+            huggingfacehub_api_token=huggingface_token
+        )
 
-    prompt = PromptTemplate(
-        input_variables=["history", "input", "country"], 
-        template=template
-    )
+        template = """
+        You are a highly experienced medical doctor named MediBot. Your task is to:
+        1. Analyze the patient's symptoms and medical history
+        2. Provide a possible diagnosis (list possible conditions by likelihood)
+        3. Recommend appropriate medications (considering the patient's country: {country})
+        4. Suggest lifestyle recommendations
+        5. Advise when to seek immediate medical attention
 
-    memory = ConversationBufferMemory(memory_key="history")
+        Current conversation:
+        {history}
 
-    return LLMChain(
-        llm=llm,
-        prompt=prompt,
-        verbose=False,
-        memory=memory
-    )
+        Patient: {input}
+        MediBot:"""
 
+        from langchain.prompts import PromptTemplate
+        from langchain.memory import ConversationBufferMemory
+        from langchain.chains import LLMChain
+
+        prompt = PromptTemplate(
+            input_variables=["history", "input", "country"], 
+            template=template
+        )
+
+        memory = ConversationBufferMemory(memory_key="history")
+
+        return LLMChain(
+            llm=llm,
+            prompt=prompt,
+            verbose=False,
+            memory=memory
+        )
+    except Exception as e:
+        st.error(f"Failed to initialize LLM: {e}")
+        return None
 # Session state setup
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
