@@ -1,11 +1,9 @@
 import streamlit as st
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain_community.llms import OpenAI
 from langchain_community.llms import HuggingFaceHub
 from langchain.memory import ConversationBufferMemory
 from PIL import Image
-import os
 import requests
 from io import BytesIO
 
@@ -17,13 +15,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load and display images
+# Load image from internet
 def load_image(url):
     response = requests.get(url)
     img = Image.open(BytesIO(response.content))
     return img
 
-# Header with logo
+# Header
 header_col1, header_col2 = st.columns([1, 4])
 with header_col1:
     st.image("https://cdn-icons-png.flaticon.com/512/2781/2781395.png", width=100)
@@ -31,7 +29,7 @@ with header_col2:
     st.title("MediBot - Your Personal Medical Assistant")
     st.caption("AI-powered medical diagnosis and treatment recommendations")
 
-# Sidebar with information
+# Sidebar
 with st.sidebar:
     st.header("About MediBot")
     st.image("https://cdn-icons-png.flaticon.com/512/3309/3309933.png", width=100)
@@ -41,7 +39,7 @@ with st.sidebar:
     - Suggest appropriate medications
     - Offer health recommendations
     - Consider regional healthcare guidelines
-    
+
     Note: This is for informational purposes only. Always consult a real doctor for medical advice.
     """)
     
@@ -55,19 +53,13 @@ with st.sidebar:
     st.write("Developed by [Your Name]")
     st.write("Version 1.0")
 
-# Initialize LangChain
+# Hugging Face LLM initialization
 def initialize_llm():
-    # You can switch between OpenAI and HuggingFace here
-    # For OpenAI (make sure to set OPENAI_API_KEY in environment variables)
-    # llm = OpenAI(temperature=0.7, model_name="gpt-3.5-turbo-instruct")
-    
-    # For HuggingFace (make sure to set HUGGINGFACEHUB_API_TOKEN)
     llm = HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
         model_kwargs={"temperature": 0.7, "max_length": 512}
     )
-    
-    # Create prompt template
+
     template = """
     You are a highly experienced medical doctor named MediBot. Your task is to:
     1. Analyze the patient's symptoms and medical history
@@ -75,51 +67,46 @@ def initialize_llm():
     3. Recommend appropriate medications (considering the patient's country: {country})
     4. Suggest lifestyle recommendations
     5. Advise when to seek immediate medical attention
-    
+
     Current conversation:
     {history}
-    
+
     Patient: {input}
     MediBot:"""
-    
+
     prompt = PromptTemplate(
         input_variables=["history", "input", "country"], 
         template=template
     )
-    
-    # Create memory for conversation
+
     memory = ConversationBufferMemory(memory_key="history")
-    
-    # Create LLM chain
+
     llm_chain = LLMChain(
         llm=llm,
         prompt=prompt,
-        verbose=True,
+        verbose=False,
         memory=memory
     )
-    
+
     return llm_chain
 
-# Initialize session state
+# Session state setup
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 if "llm_chain" not in st.session_state:
     st.session_state.llm_chain = initialize_llm()
 
-# Main chat interface
+# Main Chat Interface
 def main():
-    # Country selection
     country = st.selectbox(
         "Select your country for region-specific recommendations:",
         ("United States", "India", "United Kingdom", "Canada", "Australia", "Germany", "France", "Japan", "Brazil"),
         index=0
     )
-    
-    # Display conversation history
+
     st.subheader("Consultation Chat")
-    
     chat_container = st.container()
-    
+
     with chat_container:
         for message in st.session_state.conversation:
             if message["role"] == "user":
@@ -128,34 +115,26 @@ def main():
             else:
                 with st.chat_message("assistant"):
                     st.write(message["content"])
-    
-    # User input
+
     user_input = st.chat_input("Describe your symptoms or ask a medical question...")
-    
+
     if user_input:
-        # Add user message to conversation
         st.session_state.conversation.append({"role": "user", "content": user_input})
-        
+
         with st.spinner("Analyzing your symptoms..."):
-            # Get response from LLM
             response = st.session_state.llm_chain.run(
                 input=user_input,
                 country=country
             )
-            
-            # Add assistant response to conversation
-            st.session_state.conversation.append({"role": "assistant", "content": response})
-            
-            # Rerun to update the chat display
-            st.rerun()
 
-# Additional features
+        st.session_state.conversation.append({"role": "assistant", "content": response})
+        st.rerun()
+
+# Extra buttons/features
 def additional_features():
     st.divider()
-    
-    # Three columns for features
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.subheader("Common Conditions")
         if st.button("Cold & Flu"):
@@ -167,7 +146,7 @@ def additional_features():
         if st.button("Headache"):
             st.session_state.conversation.append({"role": "user", "content": "What causes headaches and how to relieve them?"})
             st.rerun()
-    
+
     with col2:
         st.subheader("First Aid")
         if st.button("Burns"):
@@ -179,7 +158,7 @@ def additional_features():
         if st.button("Fever"):
             st.session_state.conversation.append({"role": "user", "content": "When should I worry about a fever?"})
             st.rerun()
-    
+
     with col3:
         st.subheader("Wellness Tips")
         if st.button("Sleep Better"):
@@ -192,11 +171,31 @@ def additional_features():
             st.session_state.conversation.append({"role": "user", "content": "What are effective ways to reduce stress?"})
             st.rerun()
 
+# Educational Image Gallery
+def sample_images_section():
+    st.divider()
+    st.subheader("🧠 Sample Medical Images (for educational use)")
+
+    image_urls = {
+        "Brain MRI (Tumor)": "https://upload.wikimedia.org/wikipedia/commons/7/75/MRI_T2_Meningioma.jpg",
+        "Skin Rash": "https://upload.wikimedia.org/wikipedia/commons/8/81/Morbilliform_rash.JPG",
+        "Allergic Reaction": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Allergic_contact_dermatitis_due_to_catechu_-_2009.jpg",
+        "Flu Symptoms Chart": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Cold_vs_flu_diagram.svg/2560px-Cold_vs_flu_diagram.svg.png"
+    }
+
+    with st.expander("🔍 Click to view sample images"):
+        cols = st.columns(4)
+        for idx, (desc, url) in enumerate(image_urls.items()):
+            with cols[idx % 4]:
+                if st.button(desc):
+                    st.image(url, caption=desc, use_column_width=True)
+
 # Run the app
 if __name__ == "__main__":
     main()
     additional_features()
-    
+    sample_images_section()
+
     # Disclaimer
     st.divider()
     st.warning("""
