@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain_core.runnables import RunnableSequence
+from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain.memory import ConversationBufferMemory
@@ -17,9 +17,14 @@ st.set_page_config(
 
 # Load image from internet
 def load_image(url):
-    response = requests.get(url)
-    img = Image.open(BytesIO(response.content))
-    return img
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content))
+        return img
+    except Exception as e:
+        st.error(f"Error loading image: {e}")
+        return None
 
 # Header
 header_col1, header_col2 = st.columns([1, 4])
@@ -56,21 +61,11 @@ with st.sidebar:
 # Hugging Face LLM initialization
 @st.cache_resource
 def initialize_llm():
-    from langchain_huggingface import HuggingFaceEndpoint
-    import os
-
-    huggingface_token = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
-
-    if not huggingface_token:
-        st.error("Hugging Face API token not found. Please set the 'HUGGINGFACEHUB_API_TOKEN' environment variable.")
-        return None
-
     try:
         llm = HuggingFaceEndpoint(
             repo_id="google/flan-t5-xxl",
             temperature=0.7,
-            max_length=512,
-            huggingfacehub_api_token=huggingface_token
+            max_length=512
         )
 
         template = """
@@ -86,10 +81,6 @@ def initialize_llm():
 
         Patient: {input}
         MediBot:"""
-
-        from langchain.prompts import PromptTemplate
-        from langchain.memory import ConversationBufferMemory
-        from langchain.chains import LLMChain
 
         prompt = PromptTemplate(
             input_variables=["history", "input", "country"], 
@@ -107,6 +98,7 @@ def initialize_llm():
     except Exception as e:
         st.error(f"Failed to initialize LLM: {e}")
         return None
+
 # Session state setup
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
@@ -117,7 +109,8 @@ if "llm_chain" not in st.session_state:
 def main():
     country = st.selectbox(
         "Select your country for region-specific recommendations:",
-        ("United States", "India", "United Kingdom", "Canada", "Australia", "Germany", "France", "Japan", "Brazil"),
+        ("United States", "India", "United Kingdom", "Canada", "Australia", 
+         "Germany", "France", "Japan", "Brazil"),
         index=0
     )
 
@@ -135,17 +128,19 @@ def main():
 
     user_input = st.chat_input("Describe your symptoms or ask a medical question...")
 
-    if user_input:
+    if user_input and st.session_state.llm_chain is not None:
         st.session_state.conversation.append({"role": "user", "content": user_input})
 
         with st.spinner("Analyzing your symptoms..."):
-            response = st.session_state.llm_chain.run(
-                input=user_input,
-                country=country
-            )
-
-        st.session_state.conversation.append({"role": "assistant", "content": response})
-        st.rerun()
+            try:
+                response = st.session_state.llm_chain.run(
+                    input=user_input,
+                    country=country
+                )
+                st.session_state.conversation.append({"role": "assistant", "content": response})
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error generating response: {e}")
 
 # Extra buttons/features
 def additional_features():
@@ -199,17 +194,22 @@ def sample_images_section():
         cols = st.columns(4)
         for idx, (desc, url) in enumerate(image_urls.items()):
             with cols[idx % 4]:
-                st.image(url, caption=desc, use_column_width=True)
+                img = load_image(url)
+                if img:
+                    st.image(img, caption=desc, use_column_width=True)
 
 # Run the app
 if __name__ == "__main__":
-    main()
-    additional_features()
-    sample_images_section()
+    try:
+        main()
+        additional_features()
+        sample_images_section()
 
-    st.divider()
-    st.warning("""
-    **Important Disclaimer:** 
-    MediBot is an AI assistant for informational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment. 
-    Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
-    """)
+        st.divider()
+        st.warning("""
+        **Important Disclaimer:** 
+        MediBot is an AI assistant for informational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment. 
+        Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
+        """)
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
