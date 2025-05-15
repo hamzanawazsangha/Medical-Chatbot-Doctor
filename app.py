@@ -65,7 +65,7 @@ def initialize_llm():
         llm = HuggingFaceEndpoint(
             repo_id="google/flan-t5-xxl",
             temperature=0.7,
-            max_length=512
+            model_kwargs={"max_length": 512}
         )
 
         template = """
@@ -133,10 +133,9 @@ def main():
 
         with st.spinner("Analyzing your symptoms..."):
             try:
-                response = st.session_state.llm_chain.run(
-                    input=user_input,
-                    country=country
-                )
+                response = st.session_state.llm_chain.invoke(
+                    {"input": user_input, "country": country}
+                )["text"]
                 st.session_state.conversation.append({"role": "assistant", "content": response})
                 st.rerun()
             except Exception as e:
@@ -196,7 +195,7 @@ def sample_images_section():
             with cols[idx % 4]:
                 img = load_image(url)
                 if img:
-                    st.image(img, caption=desc, use_column_width=True)
+                    st.image(img, caption=desc, use_container_width=True)
 
 # Run the app
 if __name__ == "__main__":
