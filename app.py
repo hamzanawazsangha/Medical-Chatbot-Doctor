@@ -45,15 +45,16 @@ with st.sidebar:
     
     st.divider()
     st.subheader("Example Questions")
-    st.write("- I have fever, headache, and muscle pain. What could it be?")
-    st.write("- What's the treatment for seasonal allergies in India?")
-    st.write("- I have a rash on my arms and itching. What should I do?")
+    st.markdown("- I have fever, headache, and muscle pain. What could it be?\n"
+                "- What's the treatment for seasonal allergies in India?\n"
+                "- I have a rash on my arms and itching. What should I do?")
     
     st.divider()
     st.write("Developed by [Your Name]")
     st.write("Version 1.0")
 
 # Hugging Face LLM initialization
+@st.cache_resource
 def initialize_llm():
     llm = HuggingFaceHub(
         repo_id="google/flan-t5-xxl",
@@ -81,14 +82,12 @@ def initialize_llm():
 
     memory = ConversationBufferMemory(memory_key="history")
 
-    llm_chain = LLMChain(
+    return LLMChain(
         llm=llm,
         prompt=prompt,
         verbose=False,
         memory=memory
     )
-
-    return llm_chain
 
 # Session state setup
 if "conversation" not in st.session_state:
@@ -135,41 +134,36 @@ def additional_features():
     st.divider()
     col1, col2, col3 = st.columns(3)
 
+    def add_question_and_rerun(question):
+        st.session_state.conversation.append({"role": "user", "content": question})
+        st.rerun()
+
     with col1:
         st.subheader("Common Conditions")
         if st.button("Cold & Flu"):
-            st.session_state.conversation.append({"role": "user", "content": "What are the symptoms and treatment for cold and flu?"})
-            st.rerun()
+            add_question_and_rerun("What are the symptoms and treatment for cold and flu?")
         if st.button("Allergies"):
-            st.session_state.conversation.append({"role": "user", "content": "How to treat seasonal allergies?"})
-            st.rerun()
+            add_question_and_rerun("How to treat seasonal allergies?")
         if st.button("Headache"):
-            st.session_state.conversation.append({"role": "user", "content": "What causes headaches and how to relieve them?"})
-            st.rerun()
+            add_question_and_rerun("What causes headaches and how to relieve them?")
 
     with col2:
         st.subheader("First Aid")
         if st.button("Burns"):
-            st.session_state.conversation.append({"role": "user", "content": "What's the first aid for minor burns?"})
-            st.rerun()
+            add_question_and_rerun("What's the first aid for minor burns?")
         if st.button("Cuts"):
-            st.session_state.conversation.append({"role": "user", "content": "How to treat minor cuts and wounds?"})
-            st.rerun()
+            add_question_and_rerun("How to treat minor cuts and wounds?")
         if st.button("Fever"):
-            st.session_state.conversation.append({"role": "user", "content": "When should I worry about a fever?"})
-            st.rerun()
+            add_question_and_rerun("When should I worry about a fever?")
 
     with col3:
         st.subheader("Wellness Tips")
         if st.button("Sleep Better"):
-            st.session_state.conversation.append({"role": "user", "content": "How can I improve my sleep quality?"})
-            st.rerun()
+            add_question_and_rerun("How can I improve my sleep quality?")
         if st.button("Healthy Diet"):
-            st.session_state.conversation.append({"role": "user", "content": "What foods should I eat for better health?"})
-            st.rerun()
+            add_question_and_rerun("What foods should I eat for better health?")
         if st.button("Stress Relief"):
-            st.session_state.conversation.append({"role": "user", "content": "What are effective ways to reduce stress?"})
-            st.rerun()
+            add_question_and_rerun("What are effective ways to reduce stress?")
 
 # Educational Image Gallery
 def sample_images_section():
@@ -187,8 +181,7 @@ def sample_images_section():
         cols = st.columns(4)
         for idx, (desc, url) in enumerate(image_urls.items()):
             with cols[idx % 4]:
-                if st.button(desc):
-                    st.image(url, caption=desc, use_column_width=True)
+                st.image(url, caption=desc, use_column_width=True)
 
 # Run the app
 if __name__ == "__main__":
@@ -196,7 +189,6 @@ if __name__ == "__main__":
     additional_features()
     sample_images_section()
 
-    # Disclaimer
     st.divider()
     st.warning("""
     **Important Disclaimer:** 
