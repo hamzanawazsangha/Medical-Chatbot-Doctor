@@ -8,7 +8,7 @@ import requests
 from io import BytesIO
 import os
 
-# Set up the app layout
+# ------------------ App Configuration ------------------ #
 st.set_page_config(
     page_title="MediBot - Your Personal Medical Assistant",
     page_icon="🏥",
@@ -16,56 +16,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load image from internet
+# ------------------ Utility Functions ------------------ #
 def load_image(url):
     try:
         response = requests.get(url)
         response.raise_for_status()
-        img = Image.open(BytesIO(response.content))
-        return img
+        return Image.open(BytesIO(response.content))
     except Exception as e:
         st.error(f"Error loading image: {e}")
         return None
 
-# Header
-header_col1, header_col2 = st.columns([1, 4])
-with header_col1:
-    st.image("https://cdn-icons-png.flaticon.com/512/2781/2781395.png", width=100)
-with header_col2:
-    st.title("MediBot - Your Personal Medical Assistant")
-    st.caption("AI-powered medical diagnosis and treatment recommendations")
-
-# Sidebar
-with st.sidebar:
-    st.header("About MediBot")
-    st.image("https://cdn-icons-png.flaticon.com/512/3309/3309933.png", width=100)
-    st.write("""
-    MediBot is an AI-powered medical assistant that can:
-    - Provide preliminary disease diagnosis based on symptoms
-    - Suggest appropriate medications
-    - Offer health recommendations
-    - Consider regional healthcare guidelines
-
-    Note: This is for informational purposes only. Always consult a real doctor for medical advice.
-    """)
-    
-    st.divider()
-    st.subheader("Example Questions")
-    st.markdown("- I have fever, headache, and muscle pain. What could it be?\n"
-                "- What's the treatment for seasonal allergies in India?\n"
-                "- I have a rash on my arms and itching. What should I do?")
-    
-    st.divider()
-    st.write("Developed by [Your Name]")
-    st.write("Version 1.0")
-
-    # HuggingFace API key input
-    st.divider()
-    api_key = st.text_input("Enter your HuggingFace API key:", type="password")
-    if api_key:
-        os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_key
-
-# Hugging Face LLM initialization
 @st.cache_resource
 def initialize_llm():
     try:
@@ -98,56 +58,79 @@ def initialize_llm():
 
         memory = ConversationBufferMemory(memory_key="history")
 
-        return LLMChain(
-            llm=llm,
-            prompt=prompt,
-            verbose=False,
-            memory=memory
-        )
+        return LLMChain(llm=llm, prompt=prompt, verbose=False, memory=memory)
+
     except Exception as e:
-        st.error(f"Failed to initialize LLM: {e}")
+        st.error(f"Failed to initialize language model: {e}")
         return None
 
-# Session state setup
-if "conversation" not in st.session_state:
-    st.session_state.conversation = []
-if "llm_chain" not in st.session_state:
-    st.session_state.llm_chain = None
+# ------------------ UI Elements ------------------ #
+def render_header():
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.image("https://cdn-icons-png.flaticon.com/512/2781/2781395.png", width=100)
+    with col2:
+        st.title("MediBot - Your Personal Medical Assistant")
+        st.caption("AI-powered medical diagnosis and treatment recommendations")
 
-# Main Chat Interface
-def main():
+def render_sidebar():
+    with st.sidebar:
+        st.header("About MediBot")
+        st.image("https://cdn-icons-png.flaticon.com/512/3309/3309933.png", width=100)
+        st.markdown("""
+        MediBot is an AI-powered assistant designed to:
+        - Diagnose common symptoms
+        - Recommend medications
+        - Provide wellness guidance
+
+        ⚠️ **Note:** For informational use only. Consult a real doctor for medical concerns.
+        """)
+        st.divider()
+
+        st.subheader("Example Questions")
+        st.markdown("""
+        - I have fever, headache, and muscle pain. What could it be?
+        - What's the treatment for seasonal allergies in India?
+        - I have a rash on my arms and itching. What should I do?
+        """)
+        
+        st.divider()
+        st.write("Developed by **[Your Name]**")
+        st.write("Version 1.0")
+
+        st.divider()
+        api_key = st.text_input("Enter your HuggingFace API key:", type="password")
+        if api_key:
+            os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_key
+
+# ------------------ Main Chat Logic ------------------ #
+def chat_interface():
     if "HUGGINGFACEHUB_API_TOKEN" not in os.environ:
-        st.warning("Please enter your HuggingFace API key in the sidebar to continue")
+        st.warning("Please enter your HuggingFace API key in the sidebar to continue.")
         return
 
     if st.session_state.llm_chain is None:
         st.session_state.llm_chain = initialize_llm()
+        if st.session_state.llm_chain is None:
+            return
 
     country = st.selectbox(
         "Select your country for region-specific recommendations:",
-        ("United States", "India", "United Kingdom", "Canada", "Australia", 
-         "Germany", "France", "Japan", "Brazil"),
+        ["United States", "India", "United Kingdom", "Canada", "Australia", 
+         "Germany", "France", "Japan", "Brazil"],
         index=0
     )
 
     st.subheader("Consultation Chat")
-    chat_container = st.container()
-
-    with chat_container:
-        for message in st.session_state.conversation:
-            if message["role"] == "user":
-                with st.chat_message("user"):
-                    st.write(message["content"])
-            else:
-                with st.chat_message("assistant"):
-                    st.write(message["content"])
+    for message in st.session_state.conversation:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
 
     user_input = st.chat_input("Describe your symptoms or ask a medical question...")
 
-    if user_input and st.session_state.llm_chain is not None:
+    if user_input:
         st.session_state.conversation.append({"role": "user", "content": user_input})
-
-        with st.spinner("Analyzing your symptoms..."):
+        with st.spinner("MediBot is analyzing your symptoms..."):
             try:
                 response = st.session_state.llm_chain.invoke(
                     {"input": user_input, "country": country}
@@ -157,51 +140,42 @@ def main():
             except Exception as e:
                 st.error(f"Error generating response: {e}")
 
-# Extra buttons/features
-def additional_features():
+# ------------------ Button-Based Questions ------------------ #
+def quick_access_buttons():
     st.divider()
     col1, col2, col3 = st.columns(3)
 
-    def add_question_and_rerun(question):
-        if "llm_chain" not in st.session_state or st.session_state.llm_chain is None:
-            st.warning("Please initialize the chatbot first by entering your API key")
+    def inject_question(text):
+        if not st.session_state.llm_chain:
+            st.warning("Initialize the chatbot by entering your API key first.")
             return
-        st.session_state.conversation.append({"role": "user", "content": question})
+        st.session_state.conversation.append({"role": "user", "content": text})
         st.rerun()
 
     with col1:
         st.subheader("Common Conditions")
-        if st.button("Cold & Flu"):
-            add_question_and_rerun("What are the symptoms and treatment for cold and flu?")
-        if st.button("Allergies"):
-            add_question_and_rerun("How to treat seasonal allergies?")
-        if st.button("Headache"):
-            add_question_and_rerun("What causes headaches and how to relieve them?")
+        if st.button("Cold & Flu"): inject_question("What are the symptoms and treatment for cold and flu?")
+        if st.button("Allergies"): inject_question("How to treat seasonal allergies?")
+        if st.button("Headache"): inject_question("What causes headaches and how to relieve them?")
 
     with col2:
         st.subheader("First Aid")
-        if st.button("Burns"):
-            add_question_and_rerun("What's the first aid for minor burns?")
-        if st.button("Cuts"):
-            add_question_and_rerun("How to treat minor cuts and wounds?")
-        if st.button("Fever"):
-            add_question_and_rerun("When should I worry about a fever?")
+        if st.button("Burns"): inject_question("What's the first aid for minor burns?")
+        if st.button("Cuts"): inject_question("How to treat minor cuts and wounds?")
+        if st.button("Fever"): inject_question("When should I worry about a fever?")
 
     with col3:
         st.subheader("Wellness Tips")
-        if st.button("Sleep Better"):
-            add_question_and_rerun("How can I improve my sleep quality?")
-        if st.button("Healthy Diet"):
-            add_question_and_rerun("What foods should I eat for better health?")
-        if st.button("Stress Relief"):
-            add_question_and_rerun("What are effective ways to reduce stress?")
+        if st.button("Sleep Better"): inject_question("How can I improve my sleep quality?")
+        if st.button("Healthy Diet"): inject_question("What foods should I eat for better health?")
+        if st.button("Stress Relief"): inject_question("What are effective ways to reduce stress?")
 
-# Educational Image Gallery
+# ------------------ Educational Sample Images ------------------ #
 def sample_images_section():
     st.divider()
-    st.subheader("🧠 Sample Medical Images (for educational use)")
+    st.subheader("🧠 Sample Medical Images (for educational use only)")
 
-    image_urls = {
+    image_data = {
         "Brain MRI (Tumor)": "https://upload.wikimedia.org/wikipedia/commons/7/75/MRI_T2_Meningioma.jpg",
         "Skin Rash": "https://upload.wikimedia.org/wikipedia/commons/8/81/Morbilliform_rash.JPG",
         "Allergic Reaction": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Allergic_contact_dermatitis_due_to_catechu_-_2009.jpg",
@@ -210,24 +184,32 @@ def sample_images_section():
 
     with st.expander("🔍 Click to view sample images"):
         cols = st.columns(4)
-        for idx, (desc, url) in enumerate(image_urls.items()):
+        for idx, (label, url) in enumerate(image_data.items()):
             with cols[idx % 4]:
                 img = load_image(url)
                 if img:
-                    st.image(img, caption=desc, use_container_width=True)
+                    st.image(img, caption=label, use_container_width=True)
 
-# Run the app
+# ------------------ Initialize State ------------------ #
+if "conversation" not in st.session_state:
+    st.session_state.conversation = []
+if "llm_chain" not in st.session_state:
+    st.session_state.llm_chain = None
+
+# ------------------ Run the App ------------------ #
 if __name__ == "__main__":
     try:
-        main()
-        additional_features()
+        render_header()
+        render_sidebar()
+        chat_interface()
+        quick_access_buttons()
         sample_images_section()
 
         st.divider()
         st.warning("""
         **Important Disclaimer:** 
-        MediBot is an AI assistant for informational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment. 
-        Always seek the advice of your physician or other qualified health provider with any questions you may have regarding a medical condition.
+        MediBot is an AI assistant for informational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment.
+        Always consult a licensed healthcare provider for any medical concerns.
         """)
     except Exception as e:
         st.error(f"An unexpected error occurred: {e}")
