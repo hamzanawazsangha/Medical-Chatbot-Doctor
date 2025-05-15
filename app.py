@@ -6,6 +6,7 @@ from langchain.memory import ConversationBufferMemory
 from PIL import Image
 import requests
 from io import BytesIO
+import os
 
 # Set up the app layout
 st.set_page_config(
@@ -58,6 +59,12 @@ with st.sidebar:
     st.write("Developed by [Your Name]")
     st.write("Version 1.0")
 
+    # HuggingFace API key input
+    st.divider()
+    api_key = st.text_input("Enter your HuggingFace API key:", type="password")
+    if api_key:
+        os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_key
+
 # Hugging Face LLM initialization
 @st.cache_resource
 def initialize_llm():
@@ -65,7 +72,9 @@ def initialize_llm():
         llm = HuggingFaceEndpoint(
             repo_id="google/flan-t5-xxl",
             temperature=0.7,
-            model_kwargs={"max_length": 512}
+            max_new_tokens=512,
+            top_p=0.9,
+            repetition_penalty=1.1
         )
 
         template = """
@@ -103,10 +112,17 @@ def initialize_llm():
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
 if "llm_chain" not in st.session_state:
-    st.session_state.llm_chain = initialize_llm()
+    st.session_state.llm_chain = None
 
 # Main Chat Interface
 def main():
+    if "HUGGINGFACEHUB_API_TOKEN" not in os.environ:
+        st.warning("Please enter your HuggingFace API key in the sidebar to continue")
+        return
+
+    if st.session_state.llm_chain is None:
+        st.session_state.llm_chain = initialize_llm()
+
     country = st.selectbox(
         "Select your country for region-specific recommendations:",
         ("United States", "India", "United Kingdom", "Canada", "Australia", 
@@ -147,6 +163,9 @@ def additional_features():
     col1, col2, col3 = st.columns(3)
 
     def add_question_and_rerun(question):
+        if "llm_chain" not in st.session_state or st.session_state.llm_chain is None:
+            st.warning("Please initialize the chatbot first by entering your API key")
+            return
         st.session_state.conversation.append({"role": "user", "content": question})
         st.rerun()
 
