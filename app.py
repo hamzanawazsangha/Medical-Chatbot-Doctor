@@ -1,7 +1,7 @@
 import streamlit as st
-from langchain.chains import LLMChain
+from langchain_core.runnables import RunnableSequence
 from langchain.prompts import PromptTemplate
-from langchain_community.llms import HuggingFaceHub
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain.memory import ConversationBufferMemory
 from PIL import Image
 import requests
@@ -56,7 +56,7 @@ with st.sidebar:
 # Hugging Face LLM initialization
 @st.cache_resource
 def initialize_llm():
-    llm = HuggingFaceHub(
+    llm = HuggingFaceEndpoint(
         repo_id="google/flan-t5-xxl",
         model_kwargs={"temperature": 0.7, "max_length": 512}
     )
