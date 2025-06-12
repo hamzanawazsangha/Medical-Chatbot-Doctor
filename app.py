@@ -30,7 +30,7 @@ def load_image(url):
 def initialize_llm():
     try:
         llm = HuggingFaceEndpoint(
-        repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+        repo_id="tiiuae/falcon-7b-instruct",
         huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
         temperature=0.7,
         max_new_tokens=512,
