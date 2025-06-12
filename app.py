@@ -33,7 +33,7 @@ def initialize_llm():
     try:
         llm = HuggingFaceEndpoint(
             repo_id="tiiuae/falcon-7b-instruct",
-            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
+            huggingfacehub_api_token=st.secrets["api_keys"]["huggingface"],
             temperature=0.7,
             max_new_tokens=512,
             top_p=0.9,
@@ -115,8 +115,8 @@ def render_sidebar():
 
 # ------------------ Main Chat Logic ------------------ #
 def chat_interface():
-    if "HUGGINGFACEHUB_API_TOKEN" not in os.environ:
-        st.warning("Please enter your HuggingFace API key in the sidebar to continue.")
+    if "api_keys" not in st.secrets or "huggingface" not in st.secrets["api_keys"]:
+        st.warning("HuggingFace API key is missing in Streamlit secrets. Please set it in `.streamlit/secrets.toml`.")
         return
 
     if st.session_state.llm_chain is None:
