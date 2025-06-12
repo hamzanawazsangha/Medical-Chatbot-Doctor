@@ -3,6 +3,8 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain.memory import ConversationBufferMemory
+from langchain_core.runnables import RunnableSequence
+from langchain_core.messages import AIMessage, HumanMessage
 from PIL import Image
 import requests
 from io import BytesIO
@@ -30,12 +32,12 @@ def load_image(url):
 def initialize_llm():
     try:
         llm = HuggingFaceEndpoint(
-        repo_id="tiiuae/falcon-7b-instruct",
-        huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-        temperature=0.7,
-        max_new_tokens=512,
-        top_p=0.9,
-        repetition_penalty=1.1
+            repo_id="tiiuae/falcon-7b-instruct",
+            huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
+            temperature=0.7,
+            max_new_tokens=512,
+            top_p=0.9,
+            repetition_penalty=1.1
         )
 
         template = """
@@ -57,14 +59,21 @@ def initialize_llm():
             template=template
         )
 
-        memory = ConversationBufferMemory(memory_key="history")
+        memory = ConversationBufferMemory(memory_key="history", return_messages=True)
 
-        return LLMChain(llm=llm, prompt=prompt, verbose=False, memory=memory)
+        chain = (
+            {"input": lambda x: x["input"],
+             "history": memory.load_memory_variables,
+             "country": lambda x: x["country"]}
+            | prompt
+            | llm
+        )
+
+        return {"chain": chain, "memory": memory}
 
     except Exception as e:
         st.error(f"Failed to initialize language model: {e}")
         return None
-
 # ------------------ UI Elements ------------------ #
 def render_header():
     col1, col2 = st.columns([1, 4])
@@ -114,7 +123,7 @@ def chat_interface():
         st.session_state.llm_chain = initialize_llm()
         if st.session_state.llm_chain is None:
             return
-
+            
     country = st.selectbox(
         "Select your country for region-specific recommendations:",
         ["United States", "India", "United Kingdom", "Canada", "Australia", 
@@ -133,10 +142,18 @@ def chat_interface():
         st.session_state.conversation.append({"role": "user", "content": user_input})
         with st.spinner("MediBot is analyzing your symptoms..."):
             try:
-                response = st.session_state.llm_chain.invoke(
-                    {"input": user_input, "country": country}
-                )["text"]
-                st.session_state.conversation.append({"role": "assistant", "content": response})
+                components = st.session_state.llm_chain
+                response = components["chain"].invoke({
+                    "input": user_input,
+                    "country": country,
+                    "history": components["memory"].load_memory_variables({})
+                })
+                # Store new memory
+                components["memory"].save_context(
+                    {"input": user_input},
+                    {"output": response}
+                )
+                st.session_state.conversation.append({"role": "assistant", "content": response.content if hasattr(response, "content") else str(response)})
                 st.rerun()
             except Exception as e:
                 st.error(f"Error generating response: {e}")
